@@ -1,0 +1,8 @@
+opencv-python
+ultralytics
+numpy
+pandas
+pyyaml
+streamlit
+filterpy
+scipy

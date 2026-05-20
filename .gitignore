@@ -1,0 +1,29 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Model weights
+*.pt
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Project outputs and data
+output/
+data/*.mp4
+data/*.avi
+data/*.mkv
+
+# Archives
+*.zip
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

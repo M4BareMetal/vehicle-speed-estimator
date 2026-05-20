@@ -1,0 +1,43 @@
+model:
+  classes:
+  - 2
+  - 3
+  - 5
+  - 7
+  confidence_threshold: 0.35
+  yolo_model: yolov8n.pt
+reporting:
+  output_csv: output/vehicle_log.csv
+  violation_frames_dir: output/violations
+source:
+  path: data/wer.mp4
+  type: video
+  webcam_index: 0
+speed:
+  measurement_zone:
+  - - 480
+    - 26
+  - - 882
+    - 18
+  - - 1233
+    - 646
+  - - 34
+    - 618
+  real_world_zone_meters:
+  - - 0
+    - 0
+  - - 12
+    - 0
+  - - 12
+    - 25
+  - - 0
+    - 25
+  speed_limit_kmh: 60
+tracking:
+  iou_threshold: 0.3
+  max_age: 20
+  min_hits: 3
+  tracker_type: sort
+ui:
+  show_live: true
+  window_name: Vehicle Speed Estimator
