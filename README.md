@@ -218,6 +218,6 @@ python tests/test_alert_engine.py
 
 
 ---
-## 💻💻 WORKING LINK
+## 🖥️ Live Demo
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-HuggingFace-yellow?style=flat-square&logo=huggingface)](https://m4baremetal-vehicle-speed-estimator.hf.space)
+**[🚀 Click here to try VeloScan live →](https://m4baremetal-vehicle-speed-estimator.hf.space)**
