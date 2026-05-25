@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VeloScan — Vehicle Speed Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #18181f;
+    --border: #2a2a35;
+    --accent: #f5a623;
+    --accent2: #e8390e;
+    --green: #22c55e;
+    --text: #e8e8f0;
+    --muted: #6b6b80;
+    --mono: 'Space Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ─── GRID BACKGROUND ─── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(245,166,35,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(245,166,35,0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ─── NAV ─── */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 2rem;
+    border-bottom: 1px solid var(--border);
+    background: rgba(10,10,15,0.85);
+    backdrop-filter: blur(12px);
+  }
+  .logo {
+    font-family: var(--mono);
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+  }
+  .logo span { color: var(--text); }
+  .nav-tag {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    border: 1px solid var(--border);
+    padding: 0.25rem 0.6rem;
+    border-radius: 2px;
+  }
+
+  /* ─── PAGES ─── */
+  .page { position: relative; z-index: 1; min-height: 100vh; }
+  .page.hidden { display: none; }
+
+  /* ─── LANDING ─── */
+  #page-landing {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 6rem 2rem 4rem;
+    text-align: center;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 1.5rem;
+    opacity: 0;
+    animation: fadeUp 0.6s ease forwards 0.2s;
+  }
+
+  h1 {
+    font-size: clamp(2.8rem, 7vw, 5.5rem);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin-bottom: 1.5rem;
+    opacity: 0;
+    animation: fadeUp 0.6s ease forwards 0.4s;
+  }
+
+  h1 em {
+    font-style: normal;
+    color: var(--accent);
+    position: relative;
+  }
+
+  .subtitle {
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    color: var(--muted);
+    max-width: 480px;
+    line-height: 1.7;
+    margin-bottom: 3rem;
+    opacity: 0;
+    animation: fadeUp 0.6s ease forwards 0.6s;
+  }
+
+  .upload-zone {
+    width: 100%;
+    max-width: 520px;
+    border: 2px dashed var(--border);
+    border-radius: 4px;
+    padding: 3rem 2rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    opacity: 0;
+    animation: fadeUp 0.6s ease forwards 0.8s;
+    position: relative;
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(245,166,35,0.04);
+  }
+  .upload-zone input {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .upload-icon {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    display: block;
+  }
+  .upload-zone p {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: 0.5rem;
+  }
+  .upload-zone strong {
+    font-family: var(--mono);
+    font-size: 0.95rem;
+    color: var(--text);
+    display: block;
+    margin-bottom: 0.4rem;
+  }
+
+  .upload-status {
+    margin-top: 1.5rem;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--accent);
+    display: none;
+  }
+
+  /* ─── ZONE PICKER ─── */
+  #page-zone {
+    padding: 5rem 2rem 2rem;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .page-header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+  .page-header h2 {
+    font-size: 2rem;
+    font-weight: 800;
+    margin-bottom: 0.5rem;
+  }
+  .page-header p {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .zone-wrapper {
+    position: relative;
+    display: inline-block;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    max-width: 100%;
+  }
+  #zone-canvas {
+    display: block;
+    cursor: crosshair;
+    max-width: 100%;
+    max-height: 65vh;
+  }
+
+  .zone-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 1.5rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .point-indicators {
+    display: flex; gap: 0.5rem;
+  }
+  .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: background 0.2s;
+  }
+  .dot.filled { background: var(--accent); }
+
+  .hint {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  /* ─── SPEED LIMIT CONTROL ─── */
+  .speed-control {
+    display: flex; align-items: center; gap: 1rem;
+    margin-top: 1rem;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .speed-control input[type=range] {
+    accent-color: var(--accent);
+    width: 140px;
+  }
+  .speed-val {
+    color: var(--accent);
+    font-weight: 700;
+    min-width: 60px;
+  }
+
+  /* ─── BUTTONS ─── */
+  .btn {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.7rem 1.8rem;
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+  }
+  .btn-primary:hover { background: #f7b84a; transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+
+  /* ─── PROCESSING ─── */
+  #page-processing {
+    padding: 5rem 2rem 2rem;
+    display: flex; flex-direction: column; align-items: center;
+  }
+
+  .live-layout {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 1.5rem;
+    width: 100%;
+    max-width: 1200px;
+    margin-top: 2rem;
+  }
+
+  @media (max-width: 900px) {
+    .live-layout { grid-template-columns: 1fr; }
+  }
+
+  .video-panel {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    background: #000;
+    position: relative;
+  }
+  #live-frame {
+    width: 100%;
+    display: block;
+    min-height: 300px;
+    object-fit: contain;
+  }
+
+  .progress-bar-wrap {
+    height: 3px;
+    background: var(--border);
+  }
+  .progress-bar {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.5s ease;
+  }
+
+  .side-panel {
+    display: flex; flex-direction: column; gap: 1rem;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1.2rem;
+  }
+  .stat-card .label {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
+  }
+  .stat-card .value {
+    font-family: var(--mono);
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1;
+  }
+  .stat-card.danger .value { color: var(--accent2); }
+  .stat-card.good .value { color: var(--green); }
+
+  .live-tag {
+    position: absolute; top: 12px; right: 12px;
+    background: var(--accent2);
+    color: #fff;
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    padding: 0.2rem 0.5rem;
+    border-radius: 2px;
+    display: flex; align-items: center; gap: 0.4rem;
+  }
+  .live-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #fff;
+    animation: blink 1s infinite;
+  }
+
+  .progress-text {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 0.4rem;
+  }
+
+  /* ─── RESULTS ─── */
+  #page-results {
+    padding: 5rem 2rem 4rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .results-header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;
+  }
+
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .section-title {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .violations-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .violation-card {
+    background: var(--surface);
+    border: 1px solid rgba(232,57,14,0.3);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .violation-card img {
+    width: 100%; display: block;
+    aspect-ratio: 16/9; object-fit: cover;
+  }
+  .violation-card .vinfo {
+    padding: 0.7rem;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+  .violation-card .vspeed {
+    color: var(--accent2);
+    font-weight: 700;
+    font-size: 0.85rem;
+  }
+
+  .no-violations {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    color: var(--green);
+    padding: 2rem;
+    border: 1px solid rgba(34,197,94,0.2);
+    border-radius: 4px;
+    text-align: center;
+    background: rgba(34,197,94,0.04);
+  }
+
+  /* ─── ANIMATIONS ─── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .fade-in {
+    opacity: 0;
+    animation: fadeUp 0.5s ease forwards;
+  }
+
+  /* ─── SPINNER ─── */
+  .spinner {
+    width: 20px; height: 20px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ─── TOAST ─── */
+  #toast {
+    position: fixed; bottom: 2rem; right: 2rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.9rem 1.4rem;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    z-index: 999;
+    transform: translateY(20px);
+    opacity: 0;
+    transition: all 0.3s;
+    max-width: 340px;
+  }
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.error { border-color: var(--accent2); color: var(--accent2); }
+  #toast.success { border-color: var(--green); color: var(--green); }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="logo">VELO<span>SCAN</span></div>
+  <div class="nav-tag">v2.0 · YOLOv8 + SORT</div>
+</nav>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- ═══════════ PAGE: LANDING ═══════════ -->
+<div id="page-landing" class="page">
+  <div class="eyebrow">// Real-time Vehicle Speed Intelligence</div>
+  <h1>Catch every<br/><em>violation.</em></h1>
+  <p class="subtitle">
+    Upload a traffic video. Define a measurement zone.<br/>
+    Watch YOLOv8 track and flag every speeding vehicle in real-time.
+  </p>
+
+  <div class="upload-zone" id="upload-zone">
+    <input type="file" id="file-input" accept="video/*"/>
+    <span class="upload-icon">📹</span>
+    <strong>Drop your video here</strong>
+    <p>MP4, AVI, MOV, MKV &nbsp;·&nbsp; Any resolution</p>
+  </div>
+  <div class="upload-status" id="upload-status">
+    <span class="spinner"></span>
+    &nbsp; Uploading &amp; extracting first frame...
+  </div>
+</div>
+
+<!-- ═══════════ PAGE: ZONE PICKER ═══════════ -->
+<div id="page-zone" class="page hidden">
+  <div class="page-header">
+    <div class="eyebrow" style="opacity:1">// Step 2 of 2 — Define Measurement Zone</div>
+    <h2>Click <em style="color:var(--accent)">4 points</em> on the road</h2>
+    <p>Define the region where speed will be measured. Click the 4 corners of the road lane.</p>
+  </div>
+
+  <div class="zone-wrapper">
+    <canvas id="zone-canvas"></canvas>
+  </div>
+
+  <div class="zone-controls">
+    <div class="point-indicators">
+      <div class="dot" id="d0"></div>
+      <div class="dot" id="d1"></div>
+      <div class="dot" id="d2"></div>
+      <div class="dot" id="d3"></div>
+    </div>
+    <span class="hint" id="zone-hint">Click to place point 1 of 4</span>
+    <button class="btn btn-ghost" onclick="resetZone()">Reset</button>
+    <button class="btn btn-primary" id="btn-analyze" disabled onclick="startAnalysis()">
+      Analyze →
+    </button>
+  </div>
+
+  <div class="speed-control">
+    <span>Speed Limit:</span>
+    <input type="range" id="speed-limit" min="20" max="120" value="60" step="5"
+      oninput="document.getElementById('speed-val').textContent = this.value + ' km/h'"/>
+    <span class="speed-val" id="speed-val">60 km/h</span>
+  </div>
+</div>
+
+<!-- ═══════════ PAGE: PROCESSING ═══════════ -->
+<div id="page-processing" class="page hidden">
+  <div class="page-header">
+    <div class="eyebrow" style="opacity:1">// Processing Pipeline Active</div>
+    <h2>Analyzing <em style="color:var(--accent)" id="proc-filename">video</em></h2>
+  </div>
+
+  <div class="live-layout">
+    <div class="video-panel">
+      <img id="live-frame" src="" alt="Processing..."/>
+      <div class="live-tag"><div class="live-dot"></div>LIVE</div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar" id="progress-bar"></div>
+      </div>
+    </div>
+
+    <div class="side-panel">
+      <div class="stat-card good">
+        <div class="label">// Vehicles Detected</div>
+        <div class="value" id="stat-vehicles">0</div>
+      </div>
+      <div class="stat-card danger">
+        <div class="label">// Violations</div>
+        <div class="value" id="stat-violations">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">// Progress</div>
+        <div class="value" id="stat-progress">0%</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">// Frame</div>
+        <div class="value" id="stat-frame" style="font-size:1.2rem">0 / 0</div>
+      </div>
+    </div>
+  </div>
+  <div class="progress-text" id="progress-text">Initializing pipeline...</div>
+</div>
+
+<!-- ═══════════ PAGE: RESULTS ═══════════ -->
+<div id="page-results" class="page hidden">
+  <div class="results-header">
+    <div>
+      <div class="eyebrow" style="opacity:1">// Analysis Complete</div>
+      <h2>Results</h2>
+    </div>
+    <button class="btn btn-ghost" onclick="resetAll()">↩ New Analysis</button>
+  </div>
+
+  <div class="summary-grid" id="results-summary"></div>
+
+  <div class="section-title">// Violation Snapshots</div>
+  <div id="violations-container"></div>
+</div>
+
+<script>
+// ─── STATE ───
+let sessionId = null;
+let zonePoints = [];
+let filename   = '';
+let canvasScale = { x: 1, y: 1 };
+
+// ─── PAGES ───
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+  document.getElementById('page-' + id).classList.remove('hidden');
+  window.scrollTo(0, 0);
+}
+
+// ─── TOAST ───
+function toast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show ' + type;
+  setTimeout(() => t.className = '', 3500);
+}
+
+// ─── UPLOAD ───
+const uploadZone = document.getElementById('upload-zone');
+const fileInput  = document.getElementById('file-input');
+
+uploadZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  uploadZone.classList.add('drag-over');
+});
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) handleUpload(f);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) handleUpload(fileInput.files[0]);
+});
+
+async function handleUpload(file) {
+  filename = file.name;
+  const status = document.getElementById('upload-status');
+  status.style.display = 'flex';
+  status.style.alignItems = 'center';
+  status.style.gap = '0.5rem';
+  status.style.justifyContent = 'center';
+  status.style.marginTop = '1.5rem';
+
+  const fd = new FormData();
+  fd.append('file', file);
+
+  try {
+    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Upload failed');
+
+    sessionId = data.session_id;
+    status.style.display = 'none';
+    setupZonePicker(data.first_frame);
+    showPage('zone');
+    document.getElementById('proc-filename').textContent = filename;
+  } catch(e) {
+    status.style.display = 'none';
+    toast('Upload failed: ' + e.message, 'error');
+  }
+}
+
+// ─── ZONE PICKER ───
+let zoneImage = null;
+
+function setupZonePicker(b64) {
+  const canvas = document.getElementById('zone-canvas');
+  const img = new Image();
+  img.onload = () => {
+    zoneImage = img;
+    const maxW = Math.min(window.innerWidth - 48, 960);
+    const scale = Math.min(maxW / img.width, (window.innerHeight * 0.65) / img.height);
+    canvas.width  = img.width  * scale;
+    canvas.height = img.height * scale;
+    canvasScale = {
+      x: img.width  / canvas.width,
+      y: img.height / canvas.height
+    };
+    drawZoneCanvas();
+  };
+  img.src = 'data:image/jpeg;base64,' + b64;
+
+  canvas.addEventListener('click', onZoneClick);
+}
+
+function onZoneClick(e) {
+  if (zonePoints.length >= 4) return;
+  const canvas = document.getElementById('zone-canvas');
+  const rect   = canvas.getBoundingClientRect();
+  const cx = (e.clientX - rect.left) * (canvas.width  / rect.width);
+  const cy = (e.clientY - rect.top)  * (canvas.height / rect.height);
+  // Store real-image coords
+  zonePoints.push([cx * canvasScale.x, cy * canvasScale.y]);
+  updateDots();
+  drawZoneCanvas();
+
+  if (zonePoints.length === 4) {
+    document.getElementById('btn-analyze').disabled = false;
+    document.getElementById('zone-hint').textContent = 'Zone defined ✓ — click Analyze when ready';
+  } else {
+    document.getElementById('zone-hint').textContent =
+      `Click to place point ${zonePoints.length + 1} of 4`;
+  }
+}
+
+function drawZoneCanvas() {
+  const canvas = document.getElementById('zone-canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (zoneImage) ctx.drawImage(zoneImage, 0, 0, canvas.width, canvas.height);
+
+  const pts = zonePoints.map(p => [p[0] / canvasScale.x, p[1] / canvasScale.y]);
+
+  // Draw polygon
+  if (pts.length > 1) {
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    pts.forEach(p => ctx.lineTo(p[0], p[1]));
+    if (pts.length === 4) ctx.closePath();
+    ctx.strokeStyle = 'rgba(245,166,35,0.9)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    if (pts.length === 4) {
+      ctx.fillStyle = 'rgba(245,166,35,0.08)';
+      ctx.fill();
+    }
+  }
+
+  // Draw points
+  pts.forEach((p, i) => {
+    ctx.beginPath();
+    ctx.arc(p[0], p[1], 7, 0, Math.PI * 2);
+    ctx.fillStyle = '#f5a623';
+    ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 9px Space Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(i + 1, p[0], p[1]);
+  });
+}
+
+function updateDots() {
+  for (let i = 0; i < 4; i++) {
+    document.getElementById('d' + i).classList.toggle('filled', i < zonePoints.length);
+  }
+}
+
+function resetZone() {
+  zonePoints = [];
+  updateDots();
+  document.getElementById('btn-analyze').disabled = true;
+  document.getElementById('zone-hint').textContent = 'Click to place point 1 of 4';
+  drawZoneCanvas();
+}
+
+// ─── ANALYSIS (SSE) ───
+async function startAnalysis() {
+  const speedLimit = parseInt(document.getElementById('speed-limit').value);
+  showPage('processing');
+
+  const body = JSON.stringify({
+    session_id: sessionId,
+    zone_points: zonePoints,
+    speed_limit: speedLimit
+  });
+
+  const res = await fetch('/api/process', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body
+  });
+
+  if (!res.ok) {
+    const err = await res.json();
+    toast('Error: ' + (err.detail || 'Pipeline failed'), 'error');
+    showPage('zone');
+    return;
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop();
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      try {
+        const evt = JSON.parse(line.slice(6));
+        handleSSEEvent(evt);
+      } catch (_) {}
+    }
+  }
+}
+
+function handleSSEEvent(evt) {
+  if (evt.type === 'frame') {
+    document.getElementById('live-frame').src = 'data:image/jpeg;base64,' + evt.data;
+    const s = evt.stats;
+    document.getElementById('stat-vehicles').textContent  = s.vehicles;
+    document.getElementById('stat-violations').textContent = s.violations;
+    document.getElementById('stat-progress').textContent  = s.progress + '%';
+    document.getElementById('stat-frame').textContent     = s.frame + ' / ' + s.total_frames;
+    document.getElementById('progress-bar').style.width   = s.progress + '%';
+    document.getElementById('progress-text').textContent  =
+      `Processing frame ${s.frame} of ${s.total_frames} · ${s.fps} FPS source`;
+  }
+  else if (evt.type === 'done') {
+    renderResults(evt.summary);
+    showPage('results');
+    toast('Analysis complete!', 'success');
+  }
+  else if (evt.type === 'error') {
+    toast('Pipeline error: ' + evt.message, 'error');
+    showPage('zone');
+    console.error(evt.trace);
+  }
+}
+
+// ─── RESULTS ───
+function renderResults(summary) {
+  const grid = document.getElementById('results-summary');
+  const vRate = summary.total_vehicles > 0
+    ? ((summary.total_violations / summary.total_vehicles) * 100).toFixed(1)
+    : '0.0';
+
+  grid.innerHTML = `
+    <div class="stat-card good">
+      <div class="label">// Total Vehicles</div>
+      <div class="value">${summary.total_vehicles}</div>
+    </div>
+    <div class="stat-card danger">
+      <div class="label">// Violations</div>
+      <div class="value">${summary.total_violations}</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">// Violation Rate</div>
+      <div class="value" style="font-size:1.6rem">${vRate}%</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">// Speed Limit</div>
+      <div class="value" style="font-size:1.6rem">${summary.speed_limit} km/h</div>
+    </div>
+  `;
+
+  const vc = document.getElementById('violations-container');
+  if (!summary.violations || summary.violations.length === 0) {
+    vc.innerHTML = '<div class="no-violations">✓ No violations detected in this video.</div>';
+    return;
+  }
+
+  const vgrid = document.createElement('div');
+  vgrid.className = 'violations-grid';
+  summary.violations.forEach(v => {
+    // Parse info from filename: vehicle_<id>_frame_<n>.jpg
+    const match = v.filename.match(/vehicle_(\d+)_frame_(\d+)/);
+    const vid    = match ? match[1] : '?';
+    const vframe = match ? match[2] : '?';
+    vgrid.innerHTML += `
+      <div class="violation-card">
+        <img src="data:image/jpeg;base64,${v.image}" alt="Violation"/>
+        <div class="vinfo">
+          <div class="vspeed">⚠ OVERSPEED</div>
+          <div>Vehicle ID: #${vid} · Frame ${vframe}</div>
+        </div>
+      </div>
+    `;
+  });
+  vc.innerHTML = '';
+  vc.appendChild(vgrid);
+}
+
+// ─── RESET ───
+function resetAll() {
+  sessionId = null;
+  zonePoints = [];
+  filename   = '';
+  resetZone();
+  document.getElementById('live-frame').src = '';
+  document.getElementById('violations-container').innerHTML = '';
+  document.getElementById('results-summary').innerHTML = '';
+  showPage('landing');
+}
+</script>
+</body>
+</html>

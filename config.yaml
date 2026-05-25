@@ -15,14 +15,14 @@ source:
   webcam_index: 0
 speed:
   measurement_zone:
-  - - 480
-    - 26
-  - - 882
-    - 18
-  - - 1233
-    - 646
-  - - 34
-    - 618
+  - - 1055
+    - 639
+  - - 1229
+    - 29
+  - - 96
+    - 25
+  - - 6
+    - 598
   real_world_zone_meters:
   - - 0
     - 0

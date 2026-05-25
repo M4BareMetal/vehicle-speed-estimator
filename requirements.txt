@@ -1,4 +1,4 @@
-opencv-python
+opencv-python-headless
 ultralytics
 numpy
 pandas
@@ -6,3 +6,6 @@ pyyaml
 streamlit
 filterpy
 scipy
+fastapi
+uvicorn[standard]
+python-multipart
