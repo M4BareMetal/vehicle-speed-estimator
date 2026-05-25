@@ -215,3 +215,9 @@ python tests/test_alert_engine.py
 - License plate recognition integration
 - REST API for sending violations to a central server
 - Real-time alerts via SMS / email
+
+
+---
+## 💻💻 WORKING LINK
+
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-HuggingFace-yellow?style=flat-square&logo=huggingface)](https://m4baremetal-vehicle-speed-estimator.hf.space)
