@@ -221,3 +221,16 @@ python tests/test_alert_engine.py
 ## 🖥️ Live Demo
 
 **[🚀 Click here to try VeloScan live →](https://m4baremetal-vehicle-speed-estimator.hf.space)**
+
+
+## 🎥 V3 — Live Camera Detection
+
+**What's new:** Real-time webcam support. No video file needed.
+
+- Click **"Use Live Camera"** on the landing page
+- Browser requests camera permission
+- First frame appears — pick your 4-point measurement zone
+- Detection starts instantly via WebSocket streaming
+- Same YOLOv8 + SORT pipeline, now running on live frames at ~15fps
+
+> **Testing tip:** Point your laptop camera at a traffic video playing on your phone for an instant demo.
