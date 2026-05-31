@@ -10,19 +10,19 @@ reporting:
   output_csv: output/vehicle_log.csv
   violation_frames_dir: output/violations
 source:
-  path: uploads\70211c80-e73a-4e1b-9506-cec456ac7649\input.mp4
+  path: data/wer.mp4
   type: video
   webcam_index: 0
 speed:
   measurement_zone:
-  - - 220.3179214857651
-    - 34.594927437697784
-  - - 1231.5634730871886
-    - 26.999990728837027
-  - - 1240.6737933718862
-    - 681.6835350326345
-  - - 24.446035364768683
-    - 696.873408450356
+  - - 157
+    - 55
+  - - 114
+    - 710
+  - - 1170
+    - 703
+  - - 1112
+    - 80
   real_world_zone_meters:
   - - 0
     - 0

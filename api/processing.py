@@ -35,12 +35,11 @@ def get_first_frame_b64(video_path: str) -> str:
 def run_pipeline(video_path: str, zone_points: list, speed_limit: int, config_path: str):
     """
     Generator that yields SSE-formatted JSON strings.
-    Each event is one of:
-      - {"type": "frame", "data": "<base64 jpeg>", "stats": {...}}
-      - {"type": "done",  "summary": {...}}
-      - {"type": "error", "message": "..."}
     """
     try:
+        # Force all zone points to plain Python ints
+        zone_points = [[int(float(p[0])), int(float(p[1]))] for p in zone_points]
+
         # Patch config with user-supplied zone and video path
         with open(config_path) as f:
             config = yaml.safe_load(f)
@@ -151,7 +150,7 @@ def run_pipeline(video_path: str, zone_points: list, speed_limit: int, config_pa
                 "total_violations": len(total_violations),
                 "speed_limit": speed_limit,
                 "total_frames": total_frames,
-                "violations": violation_files[:20],  # cap at 20 for payload size
+                "violations": violation_files[:20],
                 "records": speed_records
             }
         })
@@ -161,3 +160,86 @@ def run_pipeline(video_path: str, zone_points: list, speed_limit: int, config_pa
         import traceback
         err = json.dumps({"type": "error", "message": str(e), "trace": traceback.format_exc()})
         yield f"data: {err}\n\n"
+
+class LiveCameraProcessor:
+    """
+    Stateful processor for live camera frames.
+    Holds pipeline components in memory across frames.
+    """
+    def __init__(self, zone_points: list, speed_limit: int, config_path: str):
+        zone_points = [[int(float(p[0])), int(float(p[1]))] for p in zone_points]
+        self.zone_points = zone_points
+        self.speed_limit = speed_limit
+        self.frame_id = 0
+        self.total_vehicles = set()
+        self.total_violations = set()
+        self.fps = 30  # assumed for live feed
+
+        # Patch config
+        with open(config_path) as f:
+            config = yaml.safe_load(f)
+        config['speed']['measurement_zone'] = zone_points
+        config['speed']['speed_limit_kmh'] = speed_limit
+        config['ui']['show_live'] = False
+
+        temp_config = config_path.replace('config.yaml', '_runtime_config.yaml')
+        with open(temp_config, 'w') as f:
+            yaml.dump(config, f)
+
+        self.detector = VehicleDetector(temp_config)
+        self.tracker = VehicleTracker(temp_config)
+        self.speed_estimator = SpeedEstimator(temp_config)
+        self.alert_engine = AlertEngine(temp_config)
+
+    def process_frame(self, frame_bytes: bytes) -> str:
+        """
+        Takes raw JPEG bytes from browser.
+        Returns JSON string with annotated frame as base64 + stats.
+        """
+        try:
+            np_arr = np.frombuffer(frame_bytes, np.uint8)
+            frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+            if frame is None:
+                return json.dumps({"type": "error", "message": "Could not decode frame"})
+
+            timestamp = self.frame_id / self.fps
+
+            detections = self.detector.detect(frame)
+            tracks = self.tracker.update(detections, frame)
+            speed_data = self.speed_estimator.update(tracks, self.frame_id, timestamp)
+            alerts = self.alert_engine.evaluate(speed_data)
+
+            for t in tracks:
+                self.total_vehicles.add(t['track_id'])
+            for a in alerts:
+                self.total_violations.add(a['track_id'])
+
+            annotated = draw_tracks_and_speed(
+                frame.copy(), tracks, speed_data, alerts, self.zone_points
+            )
+            annotated = draw_stats_overlay(
+                annotated,
+                len(self.total_vehicles),
+                len(self.total_violations),
+                self.speed_limit
+            )
+
+            self.frame_id += 1
+
+            return json.dumps({
+                "type": "frame",
+                "data": frame_to_base64(annotated, quality=70),
+                "stats": {
+                    "vehicles": len(self.total_vehicles),
+                    "violations": len(self.total_violations),
+                    "frame": self.frame_id
+                }
+            })
+
+        except Exception as e:
+            import traceback
+            return json.dumps({
+                "type": "error",
+                "message": str(e),
+                "trace": traceback.format_exc()
+            })
