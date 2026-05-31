@@ -189,6 +189,21 @@
     display: flex; gap: 1rem; justify-content: center; margin-top: 1.5rem; flex-wrap: wrap;
   }
 
+  /* ─── FPS INDICATOR ─── */
+  .fps-badge {
+    position: absolute;
+    top: 12px; left: 12px;
+    background: rgba(0,0,0,0.7);
+    border: 1px solid var(--border);
+    color: var(--green);
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 0.2rem 0.5rem;
+    border-radius: 2px;
+  }
+
   /* ─── RESULTS ─── */
   #page-results { padding: 5rem 2rem 4rem; max-width: 1200px; margin: 0 auto; }
   .results-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
@@ -339,6 +354,7 @@
     <div class="video-panel">
       <img id="camera-feed" src="" alt="Camera feed..." style="width:100%; display:block; min-height:300px; object-fit:contain;"/>
       <div class="live-tag"><div class="live-dot"></div>CAMERA</div>
+      <div class="fps-badge" id="fps-badge">-- FPS</div>
     </div>
     <div class="side-panel">
       <div class="stat-card good">
@@ -385,11 +401,24 @@ let sessionId      = null;
 let zonePoints     = [];
 let filename       = '';
 let canvasScale    = { x: 1, y: 1 };
-let cameraMode     = false;   // true when live camera flow
-let cameraStream   = null;    // MediaStream from getUserMedia
-let cameraWS       = null;    // WebSocket connection
-let cameraRunning  = false;   // frame capture loop flag
-let cameraSessionId = null;   // backend session for camera
+let cameraMode     = false;
+let cameraStream   = null;
+let cameraWS       = null;
+let cameraRunning  = false;
+let cameraSessionId = null;
+
+// ─── FIX 1: Frame skip counter — only send every Nth frame to backend ───
+// The browser capture loop runs freely; we throttle what actually gets sent.
+const FRAME_SKIP = 3;        // send 1 out of every 3 captured frames
+let frameSkipCounter = 0;
+
+// ─── FIX 2: Decouple send/receive — don't send next frame until result arrives ───
+// Prevents the WebSocket buffer from filling up when backend is slower than capture.
+let waitingForFrame = false;
+
+// ─── FPS tracking ───
+let fpsFrameCount = 0;
+let fpsLastTime   = performance.now();
 
 // ─── PAGES ───
 function showPage(id) {
@@ -463,14 +492,11 @@ async function startCamera() {
     return;
   }
 
-  // Feed stream into hidden video element to grab a first frame
   const videoEl = document.getElementById('camera-raw');
   videoEl.srcObject = cameraStream;
 
-  // Wait for video to be ready, then grab first frame for zone picker
   videoEl.onloadedmetadata = () => {
     videoEl.play();
-    // Give it a moment to paint first frame
     setTimeout(() => {
       const canvas = document.createElement('canvas');
       canvas.width  = videoEl.videoWidth;
@@ -491,7 +517,6 @@ async function startCamera() {
 async function startCameraDetection() {
   const speedLimit = parseInt(document.getElementById('speed-limit').value);
 
-  // Create backend session
   try {
     const res = await fetch('/api/camera/session', {
       method: 'POST',
@@ -506,11 +531,16 @@ async function startCameraDetection() {
     return;
   }
 
-  // Open WebSocket
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = `${wsProtocol}//${window.location.host}/api/ws/camera/${cameraSessionId}`;
   cameraWS = new WebSocket(wsUrl);
   cameraWS.binaryType = 'arraybuffer';
+
+  // Reset counters for fresh session
+  frameSkipCounter = 0;
+  waitingForFrame  = false;
+  fpsFrameCount    = 0;
+  fpsLastTime      = performance.now();
 
   cameraWS.onopen = () => {
     document.getElementById('cam-status-text').textContent = 'Pipeline active — detecting vehicles...';
@@ -523,25 +553,47 @@ async function startCameraDetection() {
     try {
       const msg = JSON.parse(event.data);
       if (msg.type === 'frame') {
+        // ─── FIX 2: Unlock the send loop now that we have a result back ───
+        waitingForFrame = false;
+
         document.getElementById('camera-feed').src = 'data:image/jpeg;base64,' + msg.data;
-        document.getElementById('cam-stat-vehicles').textContent  = msg.stats.vehicles;
+        document.getElementById('cam-stat-vehicles').textContent   = msg.stats.vehicles;
         document.getElementById('cam-stat-violations').textContent = msg.stats.violations;
-        document.getElementById('cam-stat-frames').textContent    = msg.stats.frame;
+        document.getElementById('cam-stat-frames').textContent     = msg.stats.frame;
+
+        // Update FPS counter
+        fpsFrameCount++;
+        const now     = performance.now();
+        const elapsed = now - fpsLastTime;
+        if (elapsed >= 1000) {
+          const fps = Math.round((fpsFrameCount * 1000) / elapsed);
+          document.getElementById('fps-badge').textContent = fps + ' FPS';
+          fpsFrameCount = 0;
+          fpsLastTime   = now;
+        }
       } else if (msg.type === 'error') {
+        waitingForFrame = false;
         toast('Pipeline error: ' + msg.message, 'error');
         console.error(msg.trace);
       }
     } catch(_) {}
   };
 
-  cameraWS.onerror = () => toast('WebSocket error — check backend', 'error');
+  cameraWS.onerror = () => {
+    waitingForFrame = false;
+    toast('WebSocket error — check backend', 'error');
+  };
   cameraWS.onclose = () => {
-    cameraRunning = false;
+    cameraRunning   = false;
+    waitingForFrame = false;
     document.getElementById('cam-status-text').textContent = 'Connection closed.';
   };
 }
 
-// Capture a frame from webcam and send over WebSocket
+// ─── CAMERA CAPTURE LOOP ───
+// Fix 1: frameSkipCounter skips frames so we don't send faster than backend can process.
+// Fix 2: waitingForFrame blocks sending until the previous annotated result has arrived.
+// Together: no queue buildup, no growing lag, UI stays as responsive as the backend allows.
 function cameraCaptureLoop() {
   if (!cameraRunning) return;
 
@@ -549,25 +601,36 @@ function cameraCaptureLoop() {
   const canvas  = document.getElementById('camera-hidden-canvas');
 
   if (videoEl.readyState >= 2 && cameraWS && cameraWS.readyState === WebSocket.OPEN) {
-    canvas.width  = videoEl.videoWidth  || 640;
-    canvas.height = videoEl.videoHeight || 480;
-    canvas.getContext('2d').drawImage(videoEl, 0, 0);
 
-    canvas.toBlob(blob => {
-      if (blob && cameraWS.readyState === WebSocket.OPEN) {
-        blob.arrayBuffer().then(buf => {
-          cameraWS.send(buf);
-        });
-      }
-    }, 'image/jpeg', 0.7);
+    frameSkipCounter++;
+
+    // Only attempt to send on every Nth frame AND only if backend has responded
+    if (frameSkipCounter >= FRAME_SKIP && !waitingForFrame) {
+      frameSkipCounter = 0;
+
+      canvas.width  = videoEl.videoWidth  || 640;
+      canvas.height = videoEl.videoHeight || 480;
+      canvas.getContext('2d').drawImage(videoEl, 0, 0);
+
+      canvas.toBlob(blob => {
+        if (blob && cameraWS && cameraWS.readyState === WebSocket.OPEN && !waitingForFrame) {
+          blob.arrayBuffer().then(buf => {
+            cameraWS.send(buf);
+            // ─── FIX 2: Lock the loop until backend responds ───
+            waitingForFrame = true;
+          });
+        }
+      }, 'image/jpeg', 0.7);
+    }
   }
 
-  // ~15 fps — enough for smooth detection without hammering the backend
-  setTimeout(() => requestAnimationFrame(cameraCaptureLoop), 66);
+  // Run at ~30fps capture rate — smooth enough, not wasteful
+  setTimeout(() => requestAnimationFrame(cameraCaptureLoop), 33);
 }
 
 function stopCamera() {
-  cameraRunning = false;
+  cameraRunning   = false;
+  waitingForFrame = false;
   if (cameraWS) { cameraWS.close(); cameraWS = null; }
   if (cameraStream) {
     cameraStream.getTracks().forEach(t => t.stop());
@@ -588,7 +651,6 @@ function setupZonePicker(b64) {
   document.getElementById('zone-hint').textContent = 'Click to place point 1 of 4';
 
   const canvas = document.getElementById('zone-canvas');
-  // Remove old listener before adding new one
   canvas.replaceWith(canvas.cloneNode(true));
   const freshCanvas = document.getElementById('zone-canvas');
 
@@ -755,6 +817,7 @@ function resetAll() {
   if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
   if (cameraWS)     { cameraWS.close(); cameraWS = null; }
   cameraRunning   = false;
+  waitingForFrame = false;
   cameraSessionId = null;
   resetZone();
   document.getElementById('live-frame').src    = '';
